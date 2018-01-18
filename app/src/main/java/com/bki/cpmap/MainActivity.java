@@ -10,7 +10,13 @@ import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.Toast;
 
+import com.bki.cpmap.utils.LocationUtil;
+import com.bki.cpmap.utils.StringUtil;
 import com.mapbox.mapboxsdk.Mapbox;
+import com.mapbox.mapboxsdk.annotations.Icon;
+import com.mapbox.mapboxsdk.annotations.IconFactory;
+import com.mapbox.mapboxsdk.annotations.Marker;
+import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -25,6 +31,8 @@ import com.mapbox.services.android.telemetry.location.LocationEnginePriority;
 import com.mapbox.services.android.telemetry.location.LostLocationEngine;
 import com.mapbox.services.android.telemetry.permissions.PermissionsListener;
 import com.mapbox.services.android.telemetry.permissions.PermissionsManager;
+import com.mapbox.services.android.ui.geocoder.GeocoderAutoCompleteView;
+import com.mapbox.services.api.geocoding.v5.GeocodingCriteria;
 
 import java.util.List;
 
@@ -34,19 +42,27 @@ import butterknife.ButterKnife;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, PermissionsListener, LocationEngineListener {
 
-    @BindView(R.id.mapView)
+    @BindView(R.id.map_view)
     MapView mapView;
+    @BindView(R.id.autocomplete_widget)
+    GeocoderAutoCompleteView autoCompleteWidget;
 
     @BindString(R.string.map_access_token)
     String mapAccessToken;
     @BindString(R.string.enable_gps_message)
     String enableGpsMessage;
+    @BindString(R.string.default_map_latitude)
+    String defaultLatitude;
+    @BindString(R.string.default_map_longitude)
+    String defaultLongitude;
+
 
     private Context context;
+    private PermissionsManager permissionsManager;
     private MapboxMap mapboxMap;
+    private Marker locationMarker;
     private LocationEngine locationEngine;
     private LocationLayerPlugin locationPlugin;
-    private PermissionsManager permissionsManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +73,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         Mapbox.getInstance(context, mapAccessToken);
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(this);
+
+        // Set up autocomplete widget
+        autoCompleteWidget.setAccessToken(Mapbox.getAccessToken());
+        autoCompleteWidget.setType(GeocodingCriteria.TYPE_POI);
+        autoCompleteWidget.setOnFeatureListener(feature -> {
+            setPinPosition(LocationUtil.getLocation(feature.asPosition().getLatitude(),
+                    feature.asPosition().getLongitude()));
+        });
     }
 
     @Override
@@ -104,10 +128,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
      * Set a default location
      */
     void setDefaultLocation() {
-        double defaultLatitude = 48.8566;
-        double defaultLongitude = 2.3522;
         mapboxMap.setCameraPosition(new CameraPosition.Builder()
-                .target(new LatLng(defaultLatitude, defaultLongitude))
+                .target(new LatLng(StringUtil.parseToDouble(defaultLatitude),
+                        StringUtil.parseToDouble(defaultLongitude)))
                 .zoom(10)
                 .build());
     }
@@ -115,6 +138,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void setCameraPosition(Location location) {
         mapboxMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
                 new LatLng(location.getLatitude(), location.getLongitude()), 13));
+    }
+
+    private void setPinPosition(Location location) {
+        Icon icon = IconFactory.getInstance(context).fromResource(R.drawable.mapbox_marker_icon_default);
+        if ( locationMarker == null ) {
+            // Add marker
+            locationMarker = mapboxMap.addMarker(new MarkerOptions()
+                    .position(new LatLng(location.getLatitude(), location.getLongitude()))
+                    .icon(icon));
+        } else {
+            // Move existing marker
+            locationMarker.setPosition(new LatLng(location.getLatitude(), location.getLongitude()));
+        }
+        setCameraPosition(location);
     }
 
 
@@ -126,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onLocationChanged(Location location) {
-        if ( location != null ) setCameraPosition(location);
+        if ( locationMarker == null ) setPinPosition(location);
     }
 
     @Override

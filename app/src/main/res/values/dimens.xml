@@ -1,4 +1,4 @@
 <resources>
-    <dimen name="fab_margin">16dp</dimen>
-    <dimen name="search_view_inset">16dp</dimen>
+    <dimen name="default_margin">16dp</dimen>
+    <dimen name="default_input_height">48dp</dimen>
 </resources>
