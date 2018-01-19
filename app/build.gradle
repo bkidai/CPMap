@@ -4,10 +4,10 @@ android {
     compileSdkVersion 27
     defaultConfig {
         applicationId "com.bki.cpmap"
-        minSdkVersion 21
+        minSdkVersion 16
         targetSdkVersion 27
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.0.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -35,7 +35,7 @@ dependencies {
     compile 'com.mapbox.mapboxsdk:mapbox-android-plugin-locationlayer:0.3.0'
     compile 'com.mapbox.mapboxsdk:mapbox-android-plugin-places:0.1.0'
     compile 'com.mapbox.mapboxsdk:mapbox-android-ui:2.2.9'
-    // compile 'com.mapbox.mapboxsdk:mapbox-java-geojson:2.2.9'
+    compile 'com.google.code.gson:gson:2.8.2'
 
     // external libs
     implementation 'com.jakewharton:butterknife:8.8.1'

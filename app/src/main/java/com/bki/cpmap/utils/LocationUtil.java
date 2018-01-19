@@ -8,6 +8,11 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import com.bki.cpmap.R;
+import com.mapbox.mapboxsdk.Mapbox;
+import com.mapbox.mapboxsdk.geometry.LatLng;
+import com.mapbox.services.api.geocoding.v5.GeocodingCriteria;
+import com.mapbox.services.api.geocoding.v5.MapboxGeocoding;
+import com.mapbox.services.commons.models.Position;
 
 /**
  * Class provide some location utils
@@ -38,6 +43,14 @@ public abstract class LocationUtil {
         pickupPin.setScaleType(ImageView.ScaleType.FIT_END);
         pickupPin.setLayoutParams(params);
         return pickupPin;
+    }
+
+    public static MapboxGeocoding getReverseGeocodeClient(final LatLng point) {
+        return new MapboxGeocoding.Builder()
+                .setAccessToken(Mapbox.getAccessToken())
+                .setCoordinates(Position.fromCoordinates(point.getLongitude(), point.getLatitude()))
+                .setGeocodingType(GeocodingCriteria.TYPE_ADDRESS)
+                .build();
     }
 
 }

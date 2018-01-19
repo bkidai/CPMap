@@ -10,15 +10,28 @@
         android:id="@+id/map_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:mapbox_styleUrl="mapbox://styles/mapbox/streets-v10"/>
+        app:mapbox_styleUrl="mapbox://styles/mapbox/streets-v10">
+    </com.mapbox.mapboxsdk.maps.MapView>
 
     <android.support.v7.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/default_margin"
+        app:cardCornerRadius="4dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/men"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_marginTop="1dp"
+            android:padding="12dp"
+            android:src="@drawable/menu"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:ignore="ContentDescription"/>
 
         <com.mapbox.services.android.ui.geocoder.GeocoderAutoCompleteView
             android:id="@+id/autocomplete_widget"
@@ -29,8 +42,8 @@
             android:inputType="text"
             android:maxLines="1"
             android:paddingEnd="@dimen/default_margin"
-            android:paddingStart="@dimen/default_margin"
-            android:textSize="20sp"/>
+            android:paddingStart="46dp"
+            android:textSize="18sp"/>
     </android.support.v7.widget.CardView>
 
     <ImageView
@@ -44,6 +57,5 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         tools:ignore="ContentDescription"/>
-
 
 </android.support.constraint.ConstraintLayout>

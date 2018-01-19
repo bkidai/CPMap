@@ -11,9 +11,13 @@ import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
 import android.widget.Toast;
 
+import com.bki.cpmap.domain.Place;
 import com.bki.cpmap.utils.LocationUtil;
+import com.bki.cpmap.utils.SharedPreferencesUtil;
 import com.bki.cpmap.utils.StringUtil;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.annotations.Icon;
@@ -35,10 +39,8 @@ import com.mapbox.services.android.telemetry.permissions.PermissionsListener;
 import com.mapbox.services.android.telemetry.permissions.PermissionsManager;
 import com.mapbox.services.android.ui.geocoder.GeocoderAutoCompleteView;
 import com.mapbox.services.api.geocoding.v5.GeocodingCriteria;
-import com.mapbox.services.api.geocoding.v5.MapboxGeocoding;
 import com.mapbox.services.api.geocoding.v5.models.CarmenFeature;
 import com.mapbox.services.api.geocoding.v5.models.GeocodingResponse;
-import com.mapbox.services.commons.models.Position;
 
 import java.util.List;
 
@@ -51,12 +53,15 @@ import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, PermissionsListener, LocationEngineListener {
 
-    // final String TAG = getClass().getSimpleName();
-
     @BindView(R.id.map_view)
     MapView mapView;
+    @BindView(R.id.select_location_btn)
+    View pickerBtn;
     @BindView(R.id.autocomplete_widget)
     GeocoderAutoCompleteView autoCompleteWidget;
+    @BindView(R.id.drawer_list_view)
+    ListView drawerListView;
+
 
     @BindString(R.string.map_access_token)
     String mapAccessToken;
@@ -73,12 +78,17 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Marker locationMarker;
     private LocationEngine locationEngine;
     private LocationLayerPlugin locationPlugin;
+    private View pickupPin;
+
+    ArrayAdapter<? extends String> adapter;
+
+    private final String locationDbKey = "StoredLocations";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         context = this;
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.drawer_view);
         ButterKnife.bind(this);
         Mapbox.getInstance(context, mapAccessToken);
         mapView.onCreate(savedInstanceState);
@@ -87,43 +97,77 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Set up autocomplete widget
         autoCompleteWidget.setAccessToken(Mapbox.getAccessToken());
         autoCompleteWidget.setType(GeocodingCriteria.TYPE_POI);
-        autoCompleteWidget.setOnFeatureListener(feature ->
-                setPinPosition(LocationUtil.getLocation(feature.asPosition().getLatitude(),
-                        feature.asPosition().getLongitude())));
+        autoCompleteWidget.setOnFeatureListener(feature -> {
+                    setPinPosition(LocationUtil.getLocation(feature.asPosition().getLatitude(),
+                            feature.asPosition().getLongitude()));
+                    storeLocation(feature);
+                }
+        );
 
         // add pickup view
-        View pickupPin = LocationUtil.preparePickupPin(context);
+        pickupPin = LocationUtil.preparePickupPin(context);
 
         // Button for user to drop marker or to pick marker back up.
-        findViewById(R.id.select_location_btn).setOnClickListener(view -> {
-            if ( autoCompleteWidget != null ) autoCompleteWidget.setText("");
-            // add the view if the first click on pick location
-            if ( pickupPin.getParent() == null ) {
-                mapView.addView(pickupPin);
-                // remove the pin if existed
-                if ( locationMarker != null ) mapboxMap.removeMarker(locationMarker);
-                locationMarker = null;
-                return;
-            }
-            // no location picked before
-            if ( locationMarker == null ) {
-                // We first find where the hovering marker position is relative to the mapboxMap
-                float coordinateX = pickupPin.getLeft() + (pickupPin.getWidth() / 2);
-                float coordinateY = pickupPin.getBottom();
-                final LatLng latLng = mapboxMap.getProjection().fromScreenLocation(
-                        new PointF(coordinateX, coordinateY));
-                // hide pickup pin
-                pickupPin.setVisibility(View.GONE);
-                Icon icon = IconFactory.getInstance(context).fromResource(R.drawable.mapbox_marker_icon_default);
-                locationMarker = mapboxMap.addMarker(new MarkerOptions().position(latLng).icon(icon));
-                // get the geoCoding information
-                reverseGeocode(latLng);
-            } else {
-                mapboxMap.removeMarker(locationMarker);
-                locationMarker = null;
-                pickupPin.setVisibility(View.VISIBLE);
-            }
-        });
+        pickerBtn.setOnClickListener(view -> handleLocationPicker());
+
+        prepareDrawerLocationsList();
+    }
+
+    void storeLocation(CarmenFeature feature) {
+        int locationMaxSize = 15;
+
+        List<Object> selectedLocations = SharedPreferencesUtil.getListObject(
+                locationDbKey, Place.class, context);
+
+        selectedLocations.add(0, new Place().parse(feature));
+
+        if ( selectedLocations.size() > locationMaxSize )
+            selectedLocations.remove(selectedLocations.size() - 1);
+        SharedPreferencesUtil.putListObject(locationDbKey, selectedLocations, context);
+
+        if ( drawerListView.getAdapter() != null ) adapter.notifyDataSetChanged();
+    }
+
+    void prepareDrawerLocationsList() {
+        List<Object> selectedLocations = SharedPreferencesUtil.getListObject(
+                locationDbKey, Place.class, context);
+        String[] listItems = new String[selectedLocations.size()];
+        for (int i = 0; i < selectedLocations.size(); i++) {
+            Place carmenFeature = (Place) selectedLocations.get(i);
+            listItems[i] = carmenFeature.getAddressName();
+        }
+        adapter = new ArrayAdapter<>(context, android.R.layout.simple_list_item_1, listItems);
+        drawerListView.setAdapter(adapter);
+    }
+
+    void handleLocationPicker() {
+        if ( autoCompleteWidget != null ) autoCompleteWidget.setText("");
+        // add the view if the first click on pick location
+        if ( pickupPin.getParent() == null ) {
+            mapView.addView(pickupPin);
+            // remove the pin if existed
+            if ( locationMarker != null ) mapboxMap.removeMarker(locationMarker);
+            locationMarker = null;
+            return;
+        }
+        // no location picked before
+        if ( locationMarker == null ) {
+            // We first find where the hovering marker position is relative to the mapboxMap
+            float coordinateX = pickupPin.getLeft() + (pickupPin.getWidth() / 2);
+            float coordinateY = pickupPin.getBottom();
+            final LatLng latLng = mapboxMap.getProjection().fromScreenLocation(
+                    new PointF(coordinateX, coordinateY));
+            // hide pickup pin
+            pickupPin.setVisibility(View.GONE);
+            Icon icon = IconFactory.getInstance(context).fromResource(R.drawable.mapbox_marker_icon_default);
+            locationMarker = mapboxMap.addMarker(new MarkerOptions().position(latLng).icon(icon));
+            // get the geoCoding information
+            reverseGeocode(latLng);
+        } else {
+            mapboxMap.removeMarker(locationMarker);
+            locationMarker = null;
+            pickupPin.setVisibility(View.VISIBLE);
+        }
     }
 
     @Override
@@ -138,15 +182,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
      * This method is used to reverse geocode where the user has dropped the marker
      */
     private void reverseGeocode(final LatLng point) {
-        MapboxGeocoding client = new MapboxGeocoding.Builder()
-                .setAccessToken(Mapbox.getAccessToken())
-                .setCoordinates(Position.fromCoordinates(point.getLongitude(), point.getLatitude()))
-                .setGeocodingType(GeocodingCriteria.TYPE_ADDRESS)
-                .build();
-
-        client.enqueueCall(new Callback<GeocodingResponse>() {
+        LocationUtil.getReverseGeocodeClient(point).enqueueCall(new Callback<GeocodingResponse>() {
             @Override
-            public void onResponse(@NonNull Call<GeocodingResponse> call, @NonNull Response<GeocodingResponse> response) {
+            public void onResponse(@NonNull Call<GeocodingResponse> call,
+                                   @NonNull Response<GeocodingResponse> response) {
                 CarmenFeature feature = null;
                 if ( response.isSuccessful() ) {
                     GeocodingResponse geoResponse = response.body();
@@ -156,14 +195,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if ( locationMarker != null ) {
                     if ( feature != null ) {
                         autoCompleteWidget.setText(feature.getPlaceName());
+                        autoCompleteWidget.clearFocus();
+                        storeLocation(feature);
                     } else autoCompleteWidget.setText("");
                     mapboxMap.selectMarker(locationMarker);
                 }
             }
 
             @Override
-            public void onFailure(@NonNull Call<GeocodingResponse> call, @NonNull Throwable t) {
-                t.printStackTrace();
+            public void onFailure(@NonNull Call<GeocodingResponse> call, @NonNull Throwable throwable) {
+                throwable.printStackTrace();
             }
         });
     }
