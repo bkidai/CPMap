@@ -3,11 +3,14 @@ package com.bki.cpmap;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.PointF;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Toast;
 
 import com.bki.cpmap.utils.LocationUtil;
@@ -17,7 +20,6 @@ import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
-import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
@@ -33,14 +35,23 @@ import com.mapbox.services.android.telemetry.permissions.PermissionsListener;
 import com.mapbox.services.android.telemetry.permissions.PermissionsManager;
 import com.mapbox.services.android.ui.geocoder.GeocoderAutoCompleteView;
 import com.mapbox.services.api.geocoding.v5.GeocodingCriteria;
+import com.mapbox.services.api.geocoding.v5.MapboxGeocoding;
+import com.mapbox.services.api.geocoding.v5.models.CarmenFeature;
+import com.mapbox.services.api.geocoding.v5.models.GeocodingResponse;
+import com.mapbox.services.commons.models.Position;
 
 import java.util.List;
 
 import butterknife.BindString;
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, PermissionsListener, LocationEngineListener {
+
+    // final String TAG = getClass().getSimpleName();
 
     @BindView(R.id.map_view)
     MapView mapView;
@@ -55,7 +66,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     String defaultLatitude;
     @BindString(R.string.default_map_longitude)
     String defaultLongitude;
-
 
     private Context context;
     private PermissionsManager permissionsManager;
@@ -77,9 +87,42 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Set up autocomplete widget
         autoCompleteWidget.setAccessToken(Mapbox.getAccessToken());
         autoCompleteWidget.setType(GeocodingCriteria.TYPE_POI);
-        autoCompleteWidget.setOnFeatureListener(feature -> {
-            setPinPosition(LocationUtil.getLocation(feature.asPosition().getLatitude(),
-                    feature.asPosition().getLongitude()));
+        autoCompleteWidget.setOnFeatureListener(feature ->
+                setPinPosition(LocationUtil.getLocation(feature.asPosition().getLatitude(),
+                        feature.asPosition().getLongitude())));
+
+        // add pickup view
+        View pickupPin = LocationUtil.preparePickupPin(context);
+
+        // Button for user to drop marker or to pick marker back up.
+        findViewById(R.id.select_location_btn).setOnClickListener(view -> {
+            if ( autoCompleteWidget != null ) autoCompleteWidget.setText("");
+            // add the view if the first click on pick location
+            if ( pickupPin.getParent() == null ) {
+                mapView.addView(pickupPin);
+                // remove the pin if existed
+                if ( locationMarker != null ) mapboxMap.removeMarker(locationMarker);
+                locationMarker = null;
+                return;
+            }
+            // no location picked before
+            if ( locationMarker == null ) {
+                // We first find where the hovering marker position is relative to the mapboxMap
+                float coordinateX = pickupPin.getLeft() + (pickupPin.getWidth() / 2);
+                float coordinateY = pickupPin.getBottom();
+                final LatLng latLng = mapboxMap.getProjection().fromScreenLocation(
+                        new PointF(coordinateX, coordinateY));
+                // hide pickup pin
+                pickupPin.setVisibility(View.GONE);
+                Icon icon = IconFactory.getInstance(context).fromResource(R.drawable.mapbox_marker_icon_default);
+                locationMarker = mapboxMap.addMarker(new MarkerOptions().position(latLng).icon(icon));
+                // get the geoCoding information
+                reverseGeocode(latLng);
+            } else {
+                mapboxMap.removeMarker(locationMarker);
+                locationMarker = null;
+                pickupPin.setVisibility(View.VISIBLE);
+            }
         });
     }
 
@@ -91,6 +134,39 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         setUserLocationMap();
     }
 
+    /**
+     * This method is used to reverse geocode where the user has dropped the marker
+     */
+    private void reverseGeocode(final LatLng point) {
+        MapboxGeocoding client = new MapboxGeocoding.Builder()
+                .setAccessToken(Mapbox.getAccessToken())
+                .setCoordinates(Position.fromCoordinates(point.getLongitude(), point.getLatitude()))
+                .setGeocodingType(GeocodingCriteria.TYPE_ADDRESS)
+                .build();
+
+        client.enqueueCall(new Callback<GeocodingResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<GeocodingResponse> call, @NonNull Response<GeocodingResponse> response) {
+                CarmenFeature feature = null;
+                if ( response.isSuccessful() ) {
+                    GeocodingResponse geoResponse = response.body();
+                    List<CarmenFeature> results = geoResponse != null ? geoResponse.getFeatures() : null;
+                    if ( results != null && results.size() > 0 ) feature = results.get(0);
+                }
+                if ( locationMarker != null ) {
+                    if ( feature != null ) {
+                        autoCompleteWidget.setText(feature.getPlaceName());
+                    } else autoCompleteWidget.setText("");
+                    mapboxMap.selectMarker(locationMarker);
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<GeocodingResponse> call, @NonNull Throwable t) {
+                t.printStackTrace();
+            }
+        });
+    }
 
     /**
      * show user location
@@ -104,7 +180,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-
+    /**
+     * Set user location
+     */
     @SuppressWarnings({"MissingPermission"})
     void setUserLocation() {
 
@@ -128,16 +206,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
      * Set a default location
      */
     void setDefaultLocation() {
-        mapboxMap.setCameraPosition(new CameraPosition.Builder()
-                .target(new LatLng(StringUtil.parseToDouble(defaultLatitude),
-                        StringUtil.parseToDouble(defaultLongitude)))
-                .zoom(10)
-                .build());
+        setCameraPosition(LocationUtil.getLocation(
+                StringUtil.parseToDouble(defaultLatitude),
+                StringUtil.parseToDouble(defaultLongitude)), 10);
     }
 
-    private void setCameraPosition(Location location) {
-        mapboxMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
-                new LatLng(location.getLatitude(), location.getLongitude()), 13));
+    private void setCameraPosition(Location location, int zoom) {
+        mapboxMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(
+                location.getLatitude(),
+                location.getLongitude()), zoom));
     }
 
     private void setPinPosition(Location location) {
@@ -151,9 +228,17 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             // Move existing marker
             locationMarker.setPosition(new LatLng(location.getLatitude(), location.getLongitude()));
         }
-        setCameraPosition(location);
+
+        hideKeyboard();
+        setCameraPosition(location, 12);
     }
 
+    private void hideKeyboard() {
+        if ( getCurrentFocus() != null ) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if ( imm != null ) imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+        }
+    }
 
     @SuppressWarnings({"MissingPermission"})
     @Override
@@ -230,4 +315,5 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onLowMemory();
         if ( mapView != null ) mapView.onLowMemory();
     }
+
 }
