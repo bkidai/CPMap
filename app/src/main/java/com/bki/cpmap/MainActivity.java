@@ -115,17 +115,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     void storeLocation(CarmenFeature feature) {
         int locationMaxSize = 15;
-
         List<Object> selectedLocations = SharedPreferencesUtil.getListObject(
                 locationDbKey, Place.class, context);
-
         selectedLocations.add(0, new Place().parse(feature));
-
         if ( selectedLocations.size() > locationMaxSize )
             selectedLocations.remove(selectedLocations.size() - 1);
         SharedPreferencesUtil.putListObject(locationDbKey, selectedLocations, context);
-
-        if ( drawerListView.getAdapter() != null ) adapter.notifyDataSetChanged();
+        /*
+        if ( adapter != null ) {
+            drawerListView.invalidate();
+            adapter.notifyDataSetChanged();
+        }
+        */
     }
 
     void prepareDrawerLocationsList() {
