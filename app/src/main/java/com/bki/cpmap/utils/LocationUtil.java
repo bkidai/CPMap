@@ -45,7 +45,7 @@ public abstract class LocationUtil {
                 SizeUtil.dp2px(context, 36),
                 SizeUtil.dp2px(context, 64),
                 Gravity.CENTER);
-        pickupPin.setImageResource(R.drawable.pin_picker);
+        pickupPin.setImageResource(R.drawable.ic_pin_picker);
         pickupPin.setScaleType(ImageView.ScaleType.FIT_END);
         pickupPin.setLayoutParams(params);
         return pickupPin;

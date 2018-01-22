@@ -5,5 +5,5 @@
     <string name="enable_gps_message">Please enable GPS for more precision</string>
     <string name="default_map_latitude">48.8566</string>
     <string name="default_map_longitude">2.3522</string>
-    <string name="find_place">Find place ...</string>
+    <string name="find_place">Find place</string>
 </resources>
