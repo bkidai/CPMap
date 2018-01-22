@@ -12,6 +12,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
 
@@ -62,7 +63,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     @BindView(R.id.drawer_list_view)
     ListView drawerListView;
 
-
     @BindString(R.string.map_access_token)
     String mapAccessToken;
     @BindString(R.string.enable_gps_message)
@@ -79,8 +79,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private LocationEngine locationEngine;
     private LocationLayerPlugin locationPlugin;
     private View pickupPin;
-
-    ArrayAdapter<? extends String> adapter;
 
     private final String locationDbKey = "StoredLocations";
 
@@ -101,6 +99,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     setPinPosition(LocationUtil.getLocation(feature.asPosition().getLatitude(),
                             feature.asPosition().getLongitude()));
                     storeLocation(feature);
+                    updateLocationsList();
                 }
         );
 
@@ -110,10 +109,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Button for user to drop marker or to pick marker back up.
         pickerBtn.setOnClickListener(view -> handleLocationPicker());
 
-        prepareDrawerLocationsList();
+        drawerListView.setAdapter(prepareDrawerLocationsList());
     }
 
-    void storeLocation(CarmenFeature feature) {
+    private void storeLocation(CarmenFeature feature) {
         int locationMaxSize = 15;
         List<Object> selectedLocations = SharedPreferencesUtil.getListObject(
                 locationDbKey, Place.class, context);
@@ -121,27 +120,23 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if ( selectedLocations.size() > locationMaxSize )
             selectedLocations.remove(selectedLocations.size() - 1);
         SharedPreferencesUtil.putListObject(locationDbKey, selectedLocations, context);
-        /*
-        if ( adapter != null ) {
-            drawerListView.invalidate();
-            adapter.notifyDataSetChanged();
-        }
-        */
     }
 
-    void prepareDrawerLocationsList() {
-        List<Object> selectedLocations = SharedPreferencesUtil.getListObject(
-                locationDbKey, Place.class, context);
+    private void updateLocationsList() {
+        if ( drawerListView != null ) drawerListView.setAdapter(prepareDrawerLocationsList());
+    }
+
+    private BaseAdapter prepareDrawerLocationsList() {
+        List<Object> selectedLocations = SharedPreferencesUtil.getListObject(locationDbKey, Place.class, context);
         String[] listItems = new String[selectedLocations.size()];
         for (int i = 0; i < selectedLocations.size(); i++) {
             Place carmenFeature = (Place) selectedLocations.get(i);
             listItems[i] = carmenFeature.getAddressName();
         }
-        adapter = new ArrayAdapter<>(context, android.R.layout.simple_list_item_1, listItems);
-        drawerListView.setAdapter(adapter);
+        return new ArrayAdapter<>(context, android.R.layout.simple_list_item_1, listItems);
     }
 
-    void handleLocationPicker() {
+    private void handleLocationPicker() {
         if ( autoCompleteWidget != null ) autoCompleteWidget.setText("");
         // add the view if the first click on pick location
         if ( pickupPin.getParent() == null ) {
@@ -198,6 +193,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         autoCompleteWidget.setText(feature.getPlaceName());
                         autoCompleteWidget.clearFocus();
                         storeLocation(feature);
+                        updateLocationsList();
                     } else autoCompleteWidget.setText("");
                     mapboxMap.selectMarker(locationMarker);
                 }
@@ -213,7 +209,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     /**
      * show user location
      */
-    void setUserLocationMap() {
+    private void setUserLocationMap() {
         if ( PermissionsManager.areLocationPermissionsGranted(context) ) setUserLocation();
         else {
             setDefaultLocation();
@@ -226,7 +222,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
      * Set user location
      */
     @SuppressWarnings({"MissingPermission"})
-    void setUserLocation() {
+    private void setUserLocation() {
 
         LocationManager locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         if ( locationManager == null || !locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ) {
@@ -247,7 +243,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     /**
      * Set a default location
      */
-    void setDefaultLocation() {
+    private void setDefaultLocation() {
         setCameraPosition(LocationUtil.getLocation(
                 StringUtil.parseToDouble(defaultLatitude),
                 StringUtil.parseToDouble(defaultLongitude)), 10);

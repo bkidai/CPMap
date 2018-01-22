@@ -33,6 +33,12 @@ public abstract class LocationUtil {
         return location;
     }
 
+    /**
+     * Prepare pickup marker on the center of the screen
+     *
+     * @param context activity context
+     * @return view
+     */
     public static View preparePickupPin(Context context) {
         ImageView pickupPin = new ImageView(context);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
