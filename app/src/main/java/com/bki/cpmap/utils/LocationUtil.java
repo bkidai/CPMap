@@ -42,8 +42,8 @@ public abstract class LocationUtil {
     public static View preparePickupPin(Context context) {
         ImageView pickupPin = new ImageView(context);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                SizeUtil.dp2px(context, 36),
-                SizeUtil.dp2px(context, 64),
+                SizeUtil.dp2px(context, 42),
+                SizeUtil.dp2px(context, 72),
                 Gravity.CENTER);
         pickupPin.setImageResource(R.drawable.ic_pin_picker);
         pickupPin.setScaleType(ImageView.ScaleType.FIT_END);
